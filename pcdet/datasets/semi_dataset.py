@@ -266,6 +266,7 @@ class SemiDatasetTemplate(torch_data.Dataset):
                     raise TypeError
 
             ret['batch_size'] = batch_size
+            ret['type'] = ret['type'][0]
             return ret
 
         if isinstance(batch_list[0], dict):

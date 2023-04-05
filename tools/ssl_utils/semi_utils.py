@@ -62,30 +62,42 @@ def random_world_scaling(box_preds, params, reverse = False):
     return box_preds
 
 @torch.no_grad()
-def reverse_transform(teacher_boxes, teacher_dict, student_dict):
+def reverse_transform(teacher_boxes, teacher_dict, student_dict, aug_key='pred_boxes'):
     augmentation_functions = {
         'random_world_flip': random_world_flip,
         'random_world_rotation': random_world_rotation,
         'random_world_scaling': random_world_scaling
     }
-    for bs_idx, teacher_box in enumerate(teacher_boxes):
+
+    def transform_boxes(boxes, bs_idx):
         teacher_aug_list = teacher_dict['augmentation_list'][bs_idx]
         student_aug_list = student_dict['augmentation_list'][bs_idx]
         teacher_aug_param = teacher_dict['augmentation_params'][bs_idx]
         student_aug_param = student_dict['augmentation_params'][bs_idx]
-        box_preds = teacher_box['pred_boxes']
+
         # inverse teacher augmentation
         teacher_aug_list = teacher_aug_list[::-1]
         for key in teacher_aug_list:
             aug_params = teacher_aug_param[key]
             aug_func = augmentation_functions[key]
-            box_preds = aug_func(box_preds, aug_params, reverse = True)
+            boxes = aug_func(boxes, aug_params, reverse=True)
         # student_augmentation
         for key in student_aug_list:
             aug_params = student_aug_param[key]
             aug_func = augmentation_functions[key]
-            box_preds = aug_func(box_preds, aug_params, reverse = False)
-        teacher_box['pred_boxes'] = box_preds
+            boxes = aug_func(boxes, aug_params, reverse=False)
+
+        return boxes
+
+    if isinstance(teacher_boxes, list):
+        for bs_idx, teacher_box in enumerate(teacher_boxes):
+            transformed_boxes = transform_boxes(teacher_box[aug_key], bs_idx)
+            teacher_box[aug_key] = transformed_boxes
+    elif isinstance(teacher_boxes, torch.Tensor):
+        for bs_idx, teacher_box in enumerate(teacher_boxes):
+            transformed_boxes = transform_boxes(teacher_box, bs_idx)
+            teacher_boxes[bs_idx] = transformed_boxes
+
     return teacher_boxes
 
 """

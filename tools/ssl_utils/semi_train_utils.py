@@ -7,12 +7,14 @@ from .sess import sess
 from .pseudo_label import pseudo_label
 from .iou_match_3d import iou_match_3d
 from .se_ssd import se_ssd
+from .reliable_student import reliable_student
 
 semi_learning_methods = {
     'SESS': sess,
     'Pseudo-Label': pseudo_label,
     '3DIoUMatch': iou_match_3d,
     'SE_SSD': se_ssd,
+    'ReliableStudent': reliable_student
 }
 
 def train_ssl_one_epoch(teacher_model, student_model, optimizer, labeled_loader, unlabeled_loader, epoch_id, lr_scheduler, accumulated_iter, ssl_cfg,

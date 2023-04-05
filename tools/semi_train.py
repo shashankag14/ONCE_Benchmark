@@ -156,7 +156,7 @@ def main():
         logger.info(pretrain_model)
         eval_pretrain_dir = output_dir / 'eval' / 'eval_with_pretraining'
         eval_pretrain_dir.mkdir(parents=True, exist_ok=True)
-        eval_one_epoch(cfg, pretrain_model, dataloaders['test'], -1, logger, dist_test=dist_train, save_to_file=False, result_dir=eval_pretrain_dir)
+        # eval_one_epoch(cfg, pretrain_model, dataloaders['test'], -1, logger, dist_test=dist_train, save_to_file=False, result_dir=eval_pretrain_dir)
     else:
         pretrain_model.cuda()
         pretrain_optimizer = build_optimizer(pretrain_model, cfg.OPTIMIZATION.PRETRAIN)
@@ -304,15 +304,15 @@ def main():
     eval_ssl_dir = output_dir / 'eval' / 'eval_with_student_model'
     eval_ssl_dir.mkdir(parents=True, exist_ok=True)
     args.start_epoch = cfg.OPTIMIZATION.SEMI_SUP_LEARNING.NUM_EPOCHS - 25
-    repeat_eval_ckpt(
-        model = student_model.module.onepass if dist_train else student_model,
-        test_loader = dataloaders['test'],
-        args = args,
-        eval_output_dir = eval_ssl_dir,
-        logger = logger,
-        ckpt_dir = ssl_ckpt_dir / 'student',
-        dist_test=dist_train
-    )
+    # repeat_eval_ckpt(
+    #     model = student_model.module.onepass if dist_train else student_model,
+    #     test_loader = dataloaders['test'],
+    #     args = args,
+    #     eval_output_dir = eval_ssl_dir,
+    #     logger = logger,
+    #     ckpt_dir = ssl_ckpt_dir / 'student',
+    #     dist_test=dist_train
+    # )
     logger.info('**********************End evaluation for student model %s/%s(%s)**********************' %
                 (cfg.EXP_GROUP_PATH, cfg.TAG, args.extra_tag))
 

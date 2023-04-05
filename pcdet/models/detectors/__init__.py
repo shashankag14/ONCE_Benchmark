@@ -6,6 +6,7 @@ from .pv_rcnn import PVRCNN
 from .second_net import SECONDNet
 from .center_points import CenterPoints
 from .semi_second import SemiSECOND, SemiSECONDIoU
+from .reliable_student_pv_rcnn import ReliableStudentPVRCNN
 
 __all__ = {
     'Detector3DTemplate': Detector3DTemplate,
@@ -17,6 +18,7 @@ __all__ = {
     'CenterPoints': CenterPoints,
     'SemiSECOND': SemiSECOND,
     'SemiSECONDIoU': SemiSECONDIoU,
+    'ReliableStudentPVRCNN': ReliableStudentPVRCNN,
 }
 
 

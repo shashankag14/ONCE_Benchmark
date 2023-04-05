@@ -160,6 +160,7 @@ class ONCEPretrainDataset(ONCESemiDataset):
         input_dict = {
             'points': points,
             'frame_id': frame_id,
+            'type': 'pretrain'
         }
 
         if 'annos' in info:
@@ -201,6 +202,7 @@ class ONCELabeledDataset(ONCESemiDataset):
         input_dict = {
             'points': points,
             'frame_id': frame_id,
+            'type': 'labeled'
         }
 
         assert 'annos' in info
@@ -243,6 +245,7 @@ class ONCEUnlabeledDataset(ONCESemiDataset):
         input_dict = {
             'points': points,
             'frame_id': frame_id,
+            'type': 'unlabeled'
         }
 
         teacher_dict, student_dict = self.prepare_data_ssl(input_dict, output_dicts=self.unlabeled_data_for)
@@ -274,6 +277,7 @@ class ONCETestDataset(ONCESemiDataset):
         input_dict = {
             'points': points,
             'frame_id': frame_id,
+            'type': 'test'
         }
 
         if 'annos' in info:

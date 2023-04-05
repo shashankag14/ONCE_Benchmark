@@ -1,3 +1,5 @@
+import copy
+
 import torch
 import torch.nn as nn
 
@@ -58,7 +60,7 @@ class VoxelSetAbstraction(nn.Module):
             if src_name in ['bev', 'raw_points']:
                 continue
             self.downsample_times_map[src_name] = SA_cfg[src_name].DOWNSAMPLE_FACTOR
-            mlps = SA_cfg[src_name].MLPS
+            mlps = copy.deepcopy(SA_cfg[src_name].MLPS)
             for k in range(len(mlps)):
                 mlps[k] = [mlps[k][0]] + mlps[k]
             cur_layer = pointnet2_stack_modules.StackSAModuleMSG(

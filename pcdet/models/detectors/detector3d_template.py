@@ -20,8 +20,8 @@ class Detector3DTemplate(nn.Module):
         self.register_buffer('global_step', torch.LongTensor(1).zero_())
 
         self.module_topology = [
-            'vfe', 'backbone_3d', 'map_to_bev_module', 'backbone_2d',
-            'dense_head', 'pfe', 'point_head', 'roi_head'
+            'vfe', 'backbone_3d', 'map_to_bev_module', 'pfe',
+            'backbone_2d', 'dense_head',  'point_head', 'roi_head'
         ]
 
     @property
@@ -97,7 +97,7 @@ class Detector3DTemplate(nn.Module):
             input_channels=model_info_dict['num_bev_features']
         )
         model_info_dict['module_list'].append(backbone_2d_module)
-        model_info_dict['num_fpn_features'] = backbone_2d_module.num_bev_features
+        model_info_dict['num_bev_features'] = backbone_2d_module.num_bev_features
         return backbone_2d_module, model_info_dict
 
     def build_pfe(self, model_info_dict):
@@ -121,7 +121,7 @@ class Detector3DTemplate(nn.Module):
             return None, model_info_dict
         dense_head_module = dense_heads.__all__[self.model_cfg.DENSE_HEAD.NAME](
             model_cfg=self.model_cfg.DENSE_HEAD,
-            input_channels=model_info_dict['num_fpn_features'],
+            input_channels=model_info_dict['num_bev_features'],
             num_class=self.num_class if not self.model_cfg.DENSE_HEAD.CLASS_AGNOSTIC else 1,
             class_names=self.class_names,
             grid_size=model_info_dict['grid_size'],
@@ -166,7 +166,7 @@ class Detector3DTemplate(nn.Module):
     def forward(self, **kwargs):
         raise NotImplementedError
 
-    def post_processing(self, batch_dict):
+    def post_processing(self, batch_dict, no_nms=False):
         """
         Args:
             batch_dict:
@@ -243,14 +243,19 @@ class Detector3DTemplate(nn.Module):
                 if batch_dict.get('has_class_labels', False):
                     label_key = 'roi_labels' if 'roi_labels' in batch_dict else 'batch_pred_labels'
                     label_preds = batch_dict[label_key][index]
+                    sem_scores = batch_dict['roi_scores'][index]
                 else:
                     label_preds = label_preds + 1
 
-                selected, selected_scores = model_nms_utils.class_agnostic_nms(
-                    box_scores=cls_preds, box_preds=box_preds,
-                    nms_config=post_process_cfg.NMS_CONFIG,
-                    score_thresh=post_process_cfg.SCORE_THRESH
-                )
+                if no_nms:
+                    selected = torch.arange(len(cls_preds), device=cls_preds.device)
+                    selected_scores = cls_preds
+                else:
+                    selected, selected_scores = model_nms_utils.class_agnostic_nms(
+                        box_scores=cls_preds, box_preds=box_preds,
+                        nms_config=post_process_cfg.NMS_CONFIG,
+                        score_thresh=post_process_cfg.SCORE_THRESH
+                    )
 
                 if post_process_cfg.OUTPUT_RAW_SCORE:
                     max_cls_preds, _ = torch.max(src_cls_preds, dim=-1)
@@ -259,6 +264,7 @@ class Detector3DTemplate(nn.Module):
                 final_scores = selected_scores
                 final_labels = label_preds[selected]
                 final_boxes = box_preds[selected]
+                final_sem_scores = torch.sigmoid(sem_scores[selected])
 
                 # added filtering boxes with size 0
                 zero_mask = (final_boxes[:, 3:6] != 0).all(1)
@@ -275,7 +281,8 @@ class Detector3DTemplate(nn.Module):
             record_dict = {
                 'pred_boxes': final_boxes,
                 'pred_scores': final_scores,
-                'pred_labels': final_labels
+                'pred_labels': final_labels,
+                'pred_sem_scores': final_sem_scores
             }
             pred_dicts.append(record_dict)
 
