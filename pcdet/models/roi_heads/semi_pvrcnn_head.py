@@ -11,7 +11,13 @@ class SemiPVRCNNHead(PVRCNNHead):
         self.proposal_target_layer_ulb = UnlabeledProposalTargetLayer(roi_sampler_cfg=self.model_cfg.TARGET_CONFIG)
         self.model_type = kwargs.get('model_type')
 
+    # TODO (shashank) : This function could be removed and the parent class forward() call could be used instead
     def forward_ulb(self, batch_dict):
+
+        if self.model_type=='student':
+            targets_dict = self.proposal_layer(
+                batch_dict, nms_config=self.model_cfg.NMS_CONFIG['TRAIN' if self.training else 'TEST']
+            )
 
         if self.training:
             targets_dict = self.assign_targets(batch_dict)
@@ -51,11 +57,6 @@ class SemiPVRCNNHead(PVRCNNHead):
             self.forward_ret_dict = targets_dict
 
         return batch_dict
-
-    def generate_proposals(self, batch_dict):
-        return self.proposal_layer(
-            batch_dict, nms_config=self.model_cfg.NMS_CONFIG['TRAIN' if self.training else 'TEST']
-        )
 
     def forward(self, batch_dict):
         if batch_dict['type'] == 'unlabeled' and self.model_type == 'student':
@@ -121,7 +122,7 @@ class SemiPVRCNNHead(PVRCNNHead):
         else:
             raise NotImplementedError
 
-        rcnn_loss_cls = rcnn_loss_cls * loss_cfgs.LOSS_WEIGHTS['rcnn_cls_weight']
+        rcnn_loss_cls = rcnn_loss_cls.sum() * loss_cfgs.LOSS_WEIGHTS['rcnn_cls_weight']
         tb_dict = {'rcnn_loss_cls': rcnn_loss_cls.item()}
         return rcnn_loss_cls, tb_dict
 
@@ -141,3 +142,39 @@ class SemiPVRCNNHead(PVRCNNHead):
         tb_dict['rcnn_loss'] = rcnn_loss
 
         return rcnn_loss, tb_dict
+    
+    '''
+    Generate reliability based weights using foreground scores from teacher model
+    '''
+    def generate_reliability_weights(self, rcnn_cls_score_teacher):
+        rcnn_cls_labels = self.forward_ret_dict['rcnn_cls_labels'].flatten()
+        interval_mask = self.forward_ret_dict['interval_mask'].flatten()
+
+        rcnn_cls_weights = torch.ones_like(rcnn_cls_labels)
+        weight_type = self.model_cfg.TARGET_CONFIG['UNLABELED_RELIABILITY_WEIGHT_TYPE']
+        rcnn_bg_score_teacher = 1 - rcnn_cls_score_teacher  # represents the bg score
+        if weight_type == 'all':
+            rcnn_cls_weights[interval_mask] = rcnn_bg_score_teacher[interval_mask]
+        elif weight_type == 'interval-only':
+            unlabeled_rcnn_cls_weights = torch.zeros_like(rcnn_cls_labels)
+            unlabeled_rcnn_cls_weights[interval_mask] = rcnn_bg_score_teacher[interval_mask]
+        elif weight_type == 'bg':
+            ulb_bg_mask = rcnn_cls_labels == 0
+            rcnn_cls_weights[ulb_bg_mask] = rcnn_bg_score_teacher[ulb_bg_mask]
+        elif weight_type == 'ignore_interval':  # Naive baseline
+            rcnn_cls_weights[interval_mask] = 0
+        elif weight_type == 'full-ema':
+            unlabeled_rcnn_cls_weights = rcnn_bg_score_teacher
+        # Use 1s for FG mask, teacher's BG scores for UC+BG mask
+        elif weight_type == 'uc-bg':
+            ulb_fg_mask = rcnn_cls_labels == 1
+            rcnn_cls_weights[~ulb_fg_mask] = rcnn_bg_score_teacher[~ulb_fg_mask]
+        # Use teacher's FG scores for FG mask, teacher's BG scores for UC+BG mask
+        elif weight_type == 'fg-uc-bg':
+            ulb_fg_mask = rcnn_cls_labels == 1
+            rcnn_cls_weights[ulb_fg_mask] = rcnn_cls_score_teacher[ulb_fg_mask]
+            rcnn_cls_weights[~ulb_fg_mask] = rcnn_bg_score_teacher[~ulb_fg_mask]
+        else:
+            raise ValueError
+
+        self.forward_ret_dict['rcnn_cls_weights'] = rcnn_cls_weights

@@ -134,7 +134,8 @@ class ReliableStudentPVRCNN(PVRCNN):
                 # ema_pred_scores_of_std_rois.append(pred_scores_ema)
                 raise NotImplementedError
             if self.model_cfg.ROI_HEAD.get('ENABLE_SOFT_TEACHER', False):
-                pred_weights = targets_dict['rcnn_cls_weights'][ind][mask].detach().clone()
+                rcnn_cls_weights = targets_dict['rcnn_cls_weights'].view_as(targets_dict['rcnn_cls_labels'])
+                pred_weights = rcnn_cls_weights[ind][mask].detach().clone()
                 sample_pred_weights.append(pred_weights)
             if self.model_cfg.ROI_HEAD.get('ENABLE_VIS', False):
                 # points_mask = targets_dict['points'][:, 0] == ind

@@ -8,3 +8,8 @@ scikit-image
 tqdm
 json
 cv2
+tqdm
+scipy
+torchmetrics
+matplotlib
+opencv-python

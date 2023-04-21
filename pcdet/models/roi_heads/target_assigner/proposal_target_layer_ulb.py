@@ -46,15 +46,10 @@ class UnlabeledProposalTargetLayer(ProposalTargetLayer):
 
             cur_rois = batch_dict['rois'][index]
             cur_roi_labels = batch_dict['roi_labels'][index]
-            cur_teacher_score = batch_dict['rcnn_cls_score_teacher'][index]
 
             subsample_unlabeled_rois = getattr(self, self.roi_sampler_cfg.UNLABELED_SAMPLER_TYPE, None)
             sampled_inds, cur_reg_valid_mask, cur_cls_labels, roi_ious, gt_assignment, cur_interval_mask = subsample_unlabeled_rois(
                 cur_rois, cur_gt_boxes, cur_roi_labels)
-
-            if self.roi_sampler_cfg.DISABLE_ST_WEIGHTS:
-                cur_rcnn_cls_weights = self.get_reliability_weights(cur_cls_labels, cur_teacher_score, cur_interval_mask)
-                batch_rcnn_cls_weights[index] = cur_rcnn_cls_weights
 
             cur_roi = batch_dict['rois'][index][sampled_inds]
             cur_roi_scores = batch_dict['roi_scores'][index][sampled_inds]

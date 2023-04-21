@@ -105,15 +105,13 @@ def reliable_student(teacher_model, student_model,
 
     ld_ret_dict, ld_tb_dict, _ = student_model(ld_student_batch_dict)
 
-    for cur_module in student_model.module_list[:-1]:
+    for cur_module in student_model.module_list:
         ud_student_batch_dict = cur_module(ud_student_batch_dict)
-
-    student_model.roi_head.generate_proposals(ud_student_batch_dict)
 
     cls_scores = get_teacher_rcnn_cls_scores(teacher_model, ud_student_batch_dict, ud_teacher_batch_dict)
     ud_student_batch_dict['rcnn_cls_score_teacher'] = cls_scores
 
-    student_model.module_list[-1](ud_student_batch_dict)
+    student_model.roi_head.generate_reliability_weights(ud_student_batch_dict['rcnn_cls_score_teacher'])
 
     ud_ret_dict, ud_tb_dict, ud_disp_dict = student_model.get_training_loss_ulb()
     loss = ld_ret_dict['loss'] + cfgs.UNLABELED_WEIGHT * ud_ret_dict['loss']
