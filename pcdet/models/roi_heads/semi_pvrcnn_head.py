@@ -145,6 +145,7 @@ class SemiPVRCNNHead(PVRCNNHead):
     
     '''
     Generate reliability based weights using foreground scores from teacher model
+    NOTE: This method is only called for unlabeled data
     '''
     def generate_reliability_weights(self, rcnn_cls_score_teacher):
         rcnn_cls_labels = self.forward_ret_dict['rcnn_cls_labels'].flatten()
@@ -152,28 +153,33 @@ class SemiPVRCNNHead(PVRCNNHead):
 
         rcnn_cls_weights = torch.ones_like(rcnn_cls_labels)
         weight_type = self.model_cfg.TARGET_CONFIG['UNLABELED_RELIABILITY_WEIGHT_TYPE']
-        rcnn_bg_score_teacher = 1 - rcnn_cls_score_teacher  # represents the bg score
+        rcnn_bg_score_teacher = 1 - rcnn_cls_score_teacher  # represents the bg score for unlabeled data
         if weight_type == 'all':
             rcnn_cls_weights[interval_mask] = rcnn_bg_score_teacher[interval_mask]
         elif weight_type == 'interval-only':
             unlabeled_rcnn_cls_weights = torch.zeros_like(rcnn_cls_labels)
-            unlabeled_rcnn_cls_weights[interval_mask] = rcnn_bg_score_teacher[interval_mask]
+            rcnn_cls_weights[interval_mask] = rcnn_bg_score_teacher[interval_mask]
         elif weight_type == 'bg':
-            ulb_bg_mask = rcnn_cls_labels == 0
-            rcnn_cls_weights[ulb_bg_mask] = rcnn_bg_score_teacher[ulb_bg_mask]
+            bg_mask = rcnn_cls_labels == 0
+            rcnn_cls_weights[bg_mask] = rcnn_bg_score_teacher[bg_mask]
         elif weight_type == 'ignore_interval':  # Naive baseline
             rcnn_cls_weights[interval_mask] = 0
         elif weight_type == 'full-ema':
-            unlabeled_rcnn_cls_weights = rcnn_bg_score_teacher
-        # Use 1s for FG mask, teacher's BG scores for UC+BG mask
+            rcnn_cls_weights = rcnn_bg_score_teacher
+        # UC_FN + BG
         elif weight_type == 'uc-bg':
-            ulb_fg_mask = rcnn_cls_labels == 1
-            rcnn_cls_weights[~ulb_fg_mask] = rcnn_bg_score_teacher[~ulb_fg_mask]
-        # Use teacher's FG scores for FG mask, teacher's BG scores for UC+BG mask
+            fg_mask = rcnn_cls_labels == 1
+            rcnn_cls_weights[~fg_mask] = rcnn_bg_score_teacher[~fg_mask]
+        # UC_FP + BG
+        elif weight_type == 'rev_uc-bg':
+            rcnn_cls_weights[interval_mask] = rcnn_cls_score_teacher[interval_mask]
+            bg_mask = rcnn_cls_labels == 0
+            rcnn_cls_weights[bg_mask] = rcnn_bg_score_teacher[bg_mask]
+        # FG + UC_FN + BG
         elif weight_type == 'fg-uc-bg':
-            ulb_fg_mask = rcnn_cls_labels == 1
-            rcnn_cls_weights[ulb_fg_mask] = rcnn_cls_score_teacher[ulb_fg_mask]
-            rcnn_cls_weights[~ulb_fg_mask] = rcnn_bg_score_teacher[~ulb_fg_mask]
+            fg_mask = rcnn_cls_labels == 1
+            rcnn_cls_weights[fg_mask] = rcnn_cls_score_teacher[fg_mask]
+            rcnn_cls_weights[~fg_mask] = rcnn_bg_score_teacher[~fg_mask]
         else:
             raise ValueError
 

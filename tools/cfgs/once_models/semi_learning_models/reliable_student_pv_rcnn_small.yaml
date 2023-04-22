@@ -288,8 +288,8 @@ MODEL:
 
             REG_FG_THRESH: 0.55
             UNLABELED_REG_FG_THRESH: [0.55, 0.55, 0.55]
-            UNLABELED_SAMPLER_TYPE: subsample_rois_classwise
-            UNLABELED_RELIABILITY_WEIGHT_TYPE: 'uc-bg'
+            UNLABELED_SAMPLER_TYPE: subsample_rois_topk
+            UNLABELED_RELIABILITY_WEIGHT_TYPE: 'rev_uc-bg'
             UNLABELED_SAMPLE_EASY_BG: True
             UNLABELED_SHARP_RCNN_CLS_LABELS: True
             UNLABELED_USE_CALIBRATED_IOUS: True

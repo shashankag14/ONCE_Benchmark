@@ -98,8 +98,9 @@ class UnlabeledProposalTargetLayer(ProposalTargetLayer):
 
         roi_ious = max_overlaps[sampled_inds]
         gt_of_rois = gt_boxes[gt_assignment[sampled_inds]]
+        sampled_roi_labels = roi_labels[sampled_inds]
 
-        rcnn_cls_labels, reg_valid_mask, interval_mask = self.classwise_iou_filtering(gt_of_rois, roi_ious, roi_labels)
+        rcnn_cls_labels, reg_valid_mask, interval_mask = self.classwise_iou_filtering(gt_of_rois, roi_ious, sampled_roi_labels)
 
         # interval_mask, reg_valid_mask and cls_labels are defined in pre_loss_filtering based on advanced thresholding.
         # cur_reg_valid_mask = torch.zeros_like(sampled_inds, dtype=torch.int)
@@ -218,8 +219,7 @@ class UnlabeledProposalTargetLayer(ProposalTargetLayer):
 
         # ----------- REG_VALID_MASK -----------
         ulb_reg_fg_thresh = self.roi_sampler_cfg.UNLABELED_REG_FG_THRESH
-        ulb_reg_fg_thresh = gt_iou_of_rois.new_tensor(ulb_reg_fg_thresh).reshape(1, 1, -1).repeat(
-            *gt_iou_of_rois.shape[:2], 1)
+        ulb_reg_fg_thresh = gt_iou_of_rois.new_tensor(ulb_reg_fg_thresh).repeat(*gt_iou_of_rois.shape[:2], 1)
         ulb_reg_fg_thresh = torch.gather(ulb_reg_fg_thresh, dim=-1, index=roi_labels.unsqueeze(-1)).squeeze(-1)
         if self.roi_sampler_cfg.get("UNLABELED_TEACHER_SCORES_FOR_RVM", False):
             # TODO Ensure this works with new classwise thresholds
@@ -231,8 +231,7 @@ class UnlabeledProposalTargetLayer(ProposalTargetLayer):
 
         # ----------- RCNN_CLS_LABELS -----------
         ulb_cls_fg_thresh = self.roi_sampler_cfg.UNLABELED_CLS_FG_THRESH
-        fg_thresh = gt_iou_of_rois.new_tensor(ulb_cls_fg_thresh).reshape(1, 1, -1).repeat(
-            *gt_iou_of_rois.shape[:2], 1)
+        fg_thresh = gt_iou_of_rois.new_tensor(ulb_cls_fg_thresh).repeat(*gt_iou_of_rois.shape[:2], 1)
         cls_fg_thresh = torch.gather(fg_thresh, dim=-1, index=roi_labels.unsqueeze(-1)).squeeze(-1)
         cls_bg_thresh = self.roi_sampler_cfg.UNLABELED_CLS_BG_THRESH
 
@@ -253,33 +252,3 @@ class UnlabeledProposalTargetLayer(ProposalTargetLayer):
         rcnn_cls_labels = gt_iou_of_rois
 
         return rcnn_cls_labels, reg_valid_mask, interval_mask
-
-    def get_reliability_weights(self, rcnn_cls_labels, rcnn_cls_score_teacher, interval_mask):
-        rcnn_cls_weights = torch.ones_like(rcnn_cls_labels)
-        weight_type = self.roi_sampler_cfg['UNLABELED_RELIABILITY_WEIGHT_TYPE']
-        rcnn_bg_score_teacher = 1 - rcnn_cls_score_teacher  # represents the bg score
-        if weight_type == 'all':
-            rcnn_cls_weights[interval_mask] = rcnn_bg_score_teacher[interval_mask]
-        elif weight_type == 'interval-only':
-            unlabeled_rcnn_cls_weights = torch.zeros_like(rcnn_cls_labels)
-            unlabeled_rcnn_cls_weights[interval_mask] = rcnn_bg_score_teacher[interval_mask]
-        elif weight_type == 'bg':
-            ulb_bg_mask = rcnn_cls_labels == 0
-            rcnn_cls_weights[ulb_bg_mask] = rcnn_bg_score_teacher[ulb_bg_mask]
-        elif weight_type == 'ignore_interval':  # Naive baseline
-            rcnn_cls_weights[interval_mask] = 0
-        elif weight_type == 'full-ema':
-            unlabeled_rcnn_cls_weights = rcnn_bg_score_teacher
-        # Use 1s for FG mask, teacher's BG scores for UC+BG mask
-        elif weight_type == 'uc-bg':
-            ulb_fg_mask = rcnn_cls_labels == 1
-            rcnn_cls_weights[~ulb_fg_mask] = rcnn_bg_score_teacher[~ulb_fg_mask]
-        # Use teacher's FG scores for FG mask, teacher's BG scores for UC+BG mask
-        elif weight_type == 'fg-uc-bg':
-            ulb_fg_mask = rcnn_cls_labels == 1
-            rcnn_cls_weights[ulb_fg_mask] = rcnn_cls_score_teacher[ulb_fg_mask]
-            rcnn_cls_weights[~ulb_fg_mask] = rcnn_bg_score_teacher[~ulb_fg_mask]
-        else:
-            raise ValueError
-
-        return rcnn_cls_weights
