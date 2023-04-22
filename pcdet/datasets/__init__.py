@@ -79,7 +79,7 @@ def build_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None,
     return dataset, dataloader, sampler
 
 def build_semi_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=None, workers=4,
-                     logger=None, merge_all_iters_to_one_epoch=False, load_pretrain=True):
+                     logger=None, merge_all_iters_to_one_epoch=False):
 
     assert merge_all_iters_to_one_epoch is False
 
@@ -91,25 +91,23 @@ def build_semi_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=
         logger = logger
     )
 
-    # Prepare data for pretrain stage only if needed 
-    if load_pretrain:
-        pretrain_dataset = _semi_dataset_dict[dataset_cfg.DATASET]['PRETRAIN'](
-            dataset_cfg=dataset_cfg,
-            class_names=class_names,
-            infos = train_infos,
-            root_path=root_path,
-            logger=logger,
-        )
-        if dist:
-            pretrain_sampler = torch.utils.data.distributed.DistributedSampler(pretrain_dataset)
-        else:
-            pretrain_sampler = None
+    pretrain_dataset = _semi_dataset_dict[dataset_cfg.DATASET]['PRETRAIN'](
+        dataset_cfg=dataset_cfg,
+        class_names=class_names,
+        infos = train_infos,
+        root_path=root_path,
+        logger=logger,
+    )
+    if dist:
+        pretrain_sampler = torch.utils.data.distributed.DistributedSampler(pretrain_dataset)
+    else:
+        pretrain_sampler = None
 
-        pretrain_dataloader = DataLoader(
-            pretrain_dataset, batch_size=batch_size['pretrain'], pin_memory=True, num_workers=workers,
-            shuffle=(pretrain_sampler is None) and True, collate_fn=pretrain_dataset.collate_batch,
-            drop_last=False, sampler=pretrain_sampler, timeout=0
-        )
+    pretrain_dataloader = DataLoader(
+        pretrain_dataset, batch_size=batch_size['pretrain'], pin_memory=True, num_workers=workers,
+        shuffle=(pretrain_sampler is None) and True, collate_fn=pretrain_dataset.collate_batch,
+        drop_last=False, sampler=pretrain_sampler, timeout=0
+    )
 
     labeled_dataset = _semi_dataset_dict[dataset_cfg.DATASET]['LABELED'](
         dataset_cfg=dataset_cfg,
@@ -164,24 +162,22 @@ def build_semi_dataloader(dataset_cfg, class_names, batch_size, dist, root_path=
     )
 
     datasets = {
+        'pretrain': pretrain_dataset,
         'labeled': labeled_dataset,
         'unlabeled': unlabeled_dataset,
         'test': test_dataset
     }
     dataloaders = {
+        'pretrain': pretrain_dataloader,
         'labeled': labeled_dataloader,
         'unlabeled': unlabeled_dataloader,
         'test': test_dataloader
     }
     samplers = {
+        'pretrain': pretrain_sampler,
         'labeled': labeled_sampler,
         'unlabeled': unlabeled_sampler,
         'test': test_sampler
     }
-    
-    if load_pretrain:
-        datasets['pretrain'] = pretrain_dataset
-        dataloaders['pretrain'] = pretrain_dataloader
-        samplers['pretrain'] = pretrain_sampler
 
     return datasets, dataloaders, samplers

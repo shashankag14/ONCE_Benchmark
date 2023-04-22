@@ -136,7 +136,6 @@ def main():
         workers=args.workers,
         logger=logger,
         merge_all_iters_to_one_epoch=args.merge_all_iters_to_one_epoch,
-        load_pretrain=cfg.get('USE_PRETRAIN_MODEL', False),
     )
 
     # --------------------------------stage I pretraining---------------------------------------
